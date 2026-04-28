@@ -46,11 +46,11 @@ public:
     // (the Node's ping_in is attached to the first gizmo's ping_in,
     //  the last gizmo's ping_out is attached to the Node's ping_out,
     //  and all of the gizmos are daisy-chained in between)
-    murm::connect(ping_in, gizmos.front().ping_in, 0);
+    murm::connect(gizmos.front().ping_in, ping_in, 0);
     for (uint i = 1; i < num_gizmos; ++i) {
         murm::connect(gizmos[i-1].ping_out, gizmos[i].ping_in, g2g_delay);
     }
-    murm::connect(gizmos.back().ping_out, ping_out, 0);
+    murm::connect(ping_out, gizmos.back().ping_out, 0);
   }
 
   // Called at the beginning to get things started

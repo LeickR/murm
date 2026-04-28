@@ -51,32 +51,44 @@ struct Connector<OutPort<ParamTypes...>, InPort<ParamTypes...>>
     }
 };
 
-// InPort→InPort: chain port_a to port_b.
-// When an OutPort later connects to port_a, it follows the chain to find the
-// bound InPort (at the end of the chain) and accumulates delays along the way.
+// InPort↔InPort: add a symmetric (undirected) chain edge between two InPorts in a
+// hierarchical component arrangement.  The two arguments play interchangeable
+// roles: the connector does not care which InPort is the bound one or which is
+// the externally-facing one — that is discovered automatically when an OutPort
+// later cross-links into the chain.
 template<typename... ParamTypes>
 struct Connector<InPort<ParamTypes...>, InPort<ParamTypes...>>
 {
-    static void connect(InPort<ParamTypes...> &port_a, InPort<ParamTypes...> &port_b, uint64_t delay)
+    static void connect(InPort<ParamTypes...> &a, InPort<ParamTypes...> &b, uint64_t delay)
     {
-        assert(port_a.isDangling() == false);
-        assert(port_b.isDangling() == false);
-        assert(port_a.isConnected() == false);
-        port_a.setChainNext(&port_b, delay);
+        assert(a.isDangling() == false);
+        assert(b.isDangling() == false);
+        a.addChainPeer(&b, delay);
+        b.addChainPeer(&a, delay);
+        // The new edge may have just connected an existing cross-linked OutPort to
+        // (or closer to) a bound delegate — give every cross-linked OutPort in the
+        // newly-merged chain a chance to (re)resolve.
+        a.notifyChainCrossOutports_(nullptr);
     }
 };
 
-// OutPort→OutPort: chain inner through outer.
-// When outer later connects to an InPort, inner is also connected to that InPort
-// with the accumulated delay (outer_delay + chain_delay).
+// OutPort↔OutPort: add a symmetric (undirected) chain edge between two OutPorts in
+// a hierarchical component arrangement.  As with the InPort↔InPort case, the
+// arguments play interchangeable roles: the connector does not care which OutPort
+// is the externally-cross-linked one.
 template<typename... ParamTypes>
 struct Connector<OutPort<ParamTypes...>, OutPort<ParamTypes...>>
 {
-    static void connect(OutPort<ParamTypes...> &inner, OutPort<ParamTypes...> &outer, uint64_t delay)
+    static void connect(OutPort<ParamTypes...> &a, OutPort<ParamTypes...> &b, uint64_t delay)
     {
-        assert(inner.isDangling() == false);
-        assert(outer.isDangling() == false);
-        outer.setChainedOutPort(&inner, delay);
+        assert(a.isDangling() == false);
+        assert(b.isDangling() == false);
+        a.addChainPeer(&b, delay);
+        b.addChainPeer(&a, delay);
+        // The new edge may have just connected the chain to a cross-linked anchor
+        // (and/or to a bound InPort delegate) — try to resolve every OutPort in the
+        // newly-merged chain.
+        a.tryResolveChain_(nullptr);
     }
 };
 
