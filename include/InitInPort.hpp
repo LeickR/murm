@@ -24,14 +24,21 @@
 #ifndef __MURM_INIT_INPORT_HPP__
 #define __MURM_INIT_INPORT_HPP__
 
+#include <vector>
 #include "marcmo/SRDelegate.hpp"
 #include "Component.hpp"
 #include "EventManager.hpp"
 
 namespace murm {
 
+// Forward declaration: InitInPort tracks pointers to InitOutPorts that have been
+// cross-linked to it.  Only the type as a pointer is needed here.
+template<typename... ParamTypes> class InitOutPort;
+
 // InitInPort class
-// (can be bound to a method or connected to a more deeply nested InitInPort)
+// (can be bound to a method or chained to other InitInPorts in a hierarchical
+//  component arrangement; chain links are bidirectional so that the order of
+//  connect() calls does not matter)
 // ParamTypes are the types of data that are passed through the port
 template<typename... ParamTypes>
 class InitInPort {
@@ -47,9 +54,19 @@ private:
     // The original delegate for an indexed InitInPort:
     IndexedDelegateType orig_del_;
     int idx_ {-1};
-    
-    bool connected_ {false};  // true if this is connected to an InitOutPort
+
+    bool connected_ {false};  // true if this InitInPort has been wired into a complete chain
     bool dangling_ {false}; // true if this is intentionally left dangling (unconnected)
+
+    // InitInPort↔InitInPort chain (undirected adjacency list).  Init connections
+    // carry no delay, but we still record peers so the chain can be walked from
+    // either end at resolution time.
+    std::vector<InitInPort<ParamTypes...> *> chain_peers_;
+
+    // Every InitOutPort that has cross-linked into this InitInPort registers
+    // itself here so that, when the chain or binding state later changes, the
+    // InitOutPort can be (re)resolved.
+    std::vector<InitOutPort<ParamTypes...> *> cross_outports_;
 
 public:
     // Constructor
@@ -62,9 +79,13 @@ public:
     //
     //    my_inport.bindToMethod(obj_ptr, &MyClass::method);
     //
+    // After binding, every InitOutPort already cross-linked anywhere in this
+    // InitInPort's chain is given a chance to (re)resolve, so that "bind first
+    // then chain" and "chain first then bind" produce the same final state.
     template <typename T>
     void bindToMethod(T *obj_ptr, void (T::*method)(ParamTypes...)) {
         del_ = generic::delegate<void(ParamTypes...)>::from(*obj_ptr, method);
+        notifyChainCrossOutports_(nullptr);
     }
 
     // Make this an indexed InitInPort and bind to a method:
@@ -98,9 +119,64 @@ public:
     // (don't call this directly, use "murm::connect(init_in_port, init_out_port);" instead)
     DelegateType &getDelegate() { return del_; }
 
-    // Mark when this InitInPort has been connected
+    // Returns true if bindToMethod() has been called on this InitInPort.
+    bool isBound() const { return bool(del_); }
+
+
+    //// InitInPort↔InitInPort chain plumbing (don't call directly, use murm::connect()) ////
+
+    // Append an undirected chain edge from this InitInPort to peer.  The
+    // Connector<InitInPort, InitInPort> calls this on both ports so the chain
+    // is symmetric.
+    void addChainPeer(InitInPort<ParamTypes...> *peer) {
+        chain_peers_.push_back(peer);
+    }
+
+    // Register an InitOutPort that has cross-linked into this InitInPort, so
+    // that we can (re)resolve it later when the chain or binding state changes.
+    void addCrossOutport(InitOutPort<ParamTypes...> *outport) {
+        cross_outports_.push_back(outport);
+    }
+
+    // Walk the (undirected, tree-shaped) chain starting from this InitInPort
+    // and find the bound endpoint.  came_from is used to avoid revisiting the
+    // previous node during the walk; pass nullptr at the top-level call.
+    // Returns nullptr if no bound InitInPort is reachable.
+    InitInPort<ParamTypes...> *findBoundEnd_(InitInPort<ParamTypes...> *came_from) {
+        if (isBound()) return this;
+        for (auto *peer : chain_peers_) {
+            if (peer == came_from) continue;
+            InitInPort<ParamTypes...> *found = peer->findBoundEnd_(this);
+            if (found != nullptr) return found;
+        }
+        return nullptr;
+    }
+
+    // Idempotently mark this InitInPort and every other InitInPort reachable
+    // through chain peers as connected.  came_from is used to avoid revisiting;
+    // pass nullptr at the top level.
+    void markChainConnectedRecursive_(InitInPort<ParamTypes...> *came_from) {
+        if (!connected_) {
+            assert(dangling_ == false);
+            connected_ = true;
+        }
+        for (auto *peer : chain_peers_) {
+            if (peer == came_from) continue;
+            peer->markChainConnectedRecursive_(this);
+        }
+    }
+    void markChainConnected() { markChainConnectedRecursive_(nullptr); }
+
+    // Notify every InitOutPort cross-linked anywhere in this chain that
+    // something has changed (e.g. a new chain edge or a fresh binding) so that
+    // they may try to (re)resolve.  Defined out-of-line below, after
+    // InitOutPort is declared.
+    void notifyChainCrossOutports_(InitInPort<ParamTypes...> *came_from);
+
+
+    // Mark when this InitInPort has been connected (legacy single-port API;
+    // kept for backwards compatibility with code outside the chain machinery).
     void setConnected(bool connected = true) {
-        // Make sure that it's not already connected or set as dangling
         if (connected) {
             assert(connected_ == false);
             assert(dangling_ == false);
