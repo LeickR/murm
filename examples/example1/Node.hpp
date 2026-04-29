@@ -27,19 +27,12 @@ private:
       "The gizmo-to-gizmo latency (in nsec)." };
 
   std::vector<Gizmo> gizmos;
-public:
-  // The in and out ports:
-  murm::InPort<int> ping_in { this };
-  murm::OutPort<int> ping_out { this };
-  
-  // Constructor
-  Node(murm::Component *parent, const std::string &name) :
-    Component(parent, "Node", name)
-  {
+
+  void init_() {
     // Create the Gizmos
     gizmos.reserve(num_gizmos); // (so we're not moving gizmos after construction)
     for (uint i = 0; i < num_gizmos; ++i) {
-      gizmos.emplace_back(this, std::string("gizmo") + std::to_string(i));
+      gizmos.emplace_back(this, i);
     }
 
     // And connect them up
@@ -52,6 +45,18 @@ public:
     }
     murm::connect(ping_out, gizmos.back().ping_out, 0);
   }
+
+public:
+  // The in and out ports:
+  murm::InPort<int> ping_in { this };
+  murm::OutPort<int> ping_out { this };
+
+  // Constructors
+  Node(murm::Component *parent, const std::string &name) :
+    Component(parent, "Node", name) { init_(); }
+
+  Node(murm::Component *parent, int index) :
+    Component(parent, "Node", index) { init_(); }
 
   // Called at the beginning to get things started
   void startPingPong() {

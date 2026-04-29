@@ -25,21 +25,22 @@ private:
 
   murm::ScheduledMethod<int> sch_send_ping { this };
 
+  void init_() {
+    ping_in.bindToMethod(this, &Gizmo::handlePing);
+    sch_send_ping.bindToMethod(this, &Gizmo::sendPing);
+  }
+
 public:
   // The in and out ports:
   murm::InPort<int> ping_in { this };
   murm::OutPort<int> ping_out { this };
-  
-  // Constructor
-  Gizmo(murm::Component *parent, const std::string &name) :
-    Component(parent, "Gizmo", name)
-  {
-    // Connect up the ping_in InPort
-    ping_in.bindToMethod(this, &Gizmo::handlePing);
 
-    // and the send_ping scheduler
-    sch_send_ping.bindToMethod(this, &Gizmo::sendPing);
-  }
+  // Constructors
+  Gizmo(murm::Component *parent, const std::string &name) :
+    Component(parent, "Gizmo", name) { init_(); }
+
+  Gizmo(murm::Component *parent, int index) :
+    Component(parent, "Gizmo", index) { init_(); }
 
   // Handle an incoming ping
   void handlePing(int ping) {

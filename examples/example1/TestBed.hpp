@@ -32,7 +32,7 @@ public:
     // Create the Nodes
     nodes.reserve(num_nodes); // (so we're not moving nodes after construction)
     for (uint i = 0; i < num_nodes; ++i) {
-      nodes.emplace_back(this, std::string("node") + std::to_string(i));
+      nodes.emplace_back(this, i);
     }
 
     // And connect them up

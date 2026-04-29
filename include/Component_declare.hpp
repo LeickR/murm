@@ -264,6 +264,12 @@ public:
         //            { return a.getOrderingNum() > b.getOrderingNum(); });
     }
 
+    // Construct a component whose name is "<type_name>[<index>]".
+    // Useful when building arrays of identically-typed child components.
+    Component(Component *parent, const std::string &type_name, int index) :
+        Component(parent, type_name, type_name + '[' + std::to_string(index) + ']')
+    {}
+
     // DEPRECATED - do not use (but provided for compatibility with older code)
     Component(Component *parent, const std::string &name) :
         Component(parent, "", name)
