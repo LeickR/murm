@@ -187,8 +187,19 @@ public:
         static_assert(DelegateType::numParams == 0,
 		  "Delegate and Event parameter counts do not match");
         
-        // Save the delegate
+        // Save the delegate.
+        // The reinterpret_cast here is intentional type-erased storage: every
+        // generic::delegate<void(...)> specialization shares the same layout
+        // (object pointer + stub pointer + empty shared_ptr-based store), so
+        // we store any signature in del_ and recover it via fpEventExecutor_.
+        // We invoke the delegate's defaulted operator= rather than memcpy so
+        // that any non-trivial member assignment (e.g. shared_ptr refcount)
+        // remains correct.  The strict-aliasing warning here is a known false
+        // positive for this pattern and is suppressed locally.
+        #pragma GCC diagnostic push
+        #pragma GCC diagnostic ignored "-Wstrict-aliasing"
         reinterpret_cast<DelegateType&>(del_) = delegate;
+        #pragma GCC diagnostic pop
         
         // Save the appropriate event executor function
         fpEventExecutor_ = eventExecutor_noparams_<DelegateType>;
@@ -207,8 +218,13 @@ public:
         static_assert(DelegateType::numParams == sizeof...(ParamTypes),
 		  "Delegate and Event param counts do not match");
         
-        // Save the delegate
+        // Save the delegate.  See the comment in the no-params constructor
+        // above for why we use reinterpret_cast here and locally suppress the
+        // strict-aliasing warning.
+        #pragma GCC diagnostic push
+        #pragma GCC diagnostic ignored "-Wstrict-aliasing"
         reinterpret_cast<DelegateType&>(del_) = delegate;
+        #pragma GCC diagnostic pop
         
         // Save the params in a tuple
         typedef std::tuple<typename std::remove_reference<ParamTypes>::type...> ParamTuple;
