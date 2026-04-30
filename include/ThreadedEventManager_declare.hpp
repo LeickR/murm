@@ -126,7 +126,7 @@ public:
         EventManager::reset();
         source_to_btq_map_.clear();
         incoming_btq_vec_.clear();
-        outgoing_btq_vec_();
+        outgoing_btq_vec_.clear();
     }
 };
 

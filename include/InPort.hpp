@@ -114,7 +114,7 @@ public:
      {
           idx_ = idx;
           orig_del_ = generic::delegate<void(int, ParamTypes...)>::from(*obj_ptr, method);
-          bindToMethod(this, InPort::indexedCall);
+          bindToMethod(this, &InPort::indexedCall);
      }
 
     // Adds the InPort index to the call parameters and invokes the original delegate:

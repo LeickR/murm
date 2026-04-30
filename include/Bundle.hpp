@@ -24,7 +24,7 @@
 #ifndef __MURM_BUNDLE_HPP__
 #define __MURM_BUNDLE_HPP__
 
-#include "../../include/connect.hpp"
+#include "connect.hpp"
 
 // Bundle of connectors
 // (a Bundle is basically a Vector with some "extras")
