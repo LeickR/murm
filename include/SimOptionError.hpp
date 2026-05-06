@@ -41,29 +41,34 @@ public:
     using std::runtime_error::runtime_error;
 };
 
-// A command-line option not in the option-definition string (e.g. "-zzz").
+// Anything CLI11 itself rejected during parse (unknown option, missing arg,
+// conversion failure, ...).  The message is forwarded verbatim from the
+// underlying CLI11 ParseError so callers don't have to reach into CLI11's
+// type hierarchy to understand what went wrong.
 class UnknownOptionError : public SimOptionError {
 public:
-    explicit UnknownOptionError(const std::string &option)
-        : SimOptionError("unknown option: -" + option) {}
+    using SimOptionError::SimOptionError;
 };
 
-// A stray positional argument the parser cannot interpret.
+// A stray positional argument the parser cannot interpret.  (Currently
+// unused: CLI11 reports those as part of its ParseError surface, which we
+// translate into UnknownOptionError.  Kept for callers that want to raise
+// it themselves.)
 class UnknownArgumentError : public SimOptionError {
 public:
     explicit UnknownArgumentError(const std::string &arg)
         : SimOptionError("unknown argument: " + arg) {}
 };
 
-// A parameter override (e.g. from "-p" or a "-pin" file) that does not contain
-// the required '=' separator (e.g. "-p sim.x.foo").
+// A parameter override (e.g. from --param or a --pin file) that does not
+// contain the required '=' separator (e.g. "--param sim.x.foo").
 class InvalidOverrideSpec : public SimOptionError {
 public:
     explicit InvalidOverrideSpec(const std::string &spec)
         : SimOptionError("invalid parameter override (missing '='): " + spec) {}
 };
 
-// "-pin <file>" could not open the requested file.
+// "--pin <file>" could not open the requested file.
 class ParamFileNotFoundError : public SimOptionError {
 public:
     explicit ParamFileNotFoundError(const std::string &path)

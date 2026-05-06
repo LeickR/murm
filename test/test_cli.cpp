@@ -1,6 +1,6 @@
 // Tests for SimOptionHandler / ParamOverlayGen command-line parsing,
-// covering both happy paths (-p, -pin, -lp/-ls quit flags) and the
-// SimOptionError exception hierarchy.
+// covering both happy paths (-p / --param, --pin, --lp / --ls quit flags,
+// --help) and the SimOptionError exception hierarchy.
 
 #include <cstdio>
 #include <cstring>
@@ -22,9 +22,8 @@
 namespace {
 
 // argv-style argument list whose underlying char buffers stay alive for the
-// lifetime of the helper.  CommandOptionHandler::parseOptions takes char* (not
-// const char*), and walks argv[i] mutably, so we can't pass a string literal
-// directly.
+// lifetime of the helper.  CLI::App::parse takes char**, so the buffers
+// have to be writable - we can't pass string literals directly.
 class ArgList {
 public:
     template <typename... Strings>
@@ -137,6 +136,19 @@ TEST(p_option_supports_wildcard_param_name) {
     ASSERT_STREQ("12345", host.sparam.get());
 }
 
+TEST(long_param_alias_is_accepted) {
+    // The long-form spelling --param should be a synonym for -p.
+    SimOptionHandler soh;
+    ArgList args("prog", "--param", "sim.h.iparam=555");
+    soh.parseSimOptions(args.argc(), args.argv());
+
+    murm::TopLevelComponent root;
+    root.addParamOverlayNode(soh.getParamOverlayNode());
+    HostComp host(&root, "h");
+
+    ASSERT_EQ(555, host.iparam.get());
+}
+
 TEST(pin_option_reads_overrides_from_file) {
     std::string path = write_temp_file(
         "murm_test_pin_ok.dat",
@@ -144,7 +156,7 @@ TEST(pin_option_reads_overrides_from_file) {
         "sim.h.dparam=1.25\n");
 
     SimOptionHandler soh;
-    ArgList args("prog", "-pin", path);
+    ArgList args("prog", "--pin", path);
     soh.parseSimOptions(args.argc(), args.argv());
 
     murm::TopLevelComponent root;
@@ -168,10 +180,10 @@ TEST(processCLA_returns_false_with_no_listing_options) {
 
 TEST(processCLA_returns_true_with_lp) {
     SimOptionHandler soh;
-    ArgList args("prog", "-lp");
+    ArgList args("prog", "--lp");
     soh.parseSimOptions(args.argc(), args.argv());
 
-    // -lp prints an "Available parameters" listing for the singleton sim
+    // --lp prints an "Available parameters" listing for the singleton sim
     // tree, then asks main() to quit.  The listing itself is harmless (no
     // children attached to sim in this test binary), so we just check the
     // quit signal.
@@ -179,12 +191,24 @@ TEST(processCLA_returns_true_with_lp) {
     ASSERT_TRUE(quit);
 }
 
+TEST(help_flag_prints_help_and_quits) {
+    // --help is provided by CLI11 and is mapped to a graceful "quit, no
+    // error" signal: parseSimOptions returns without throwing, no overlay
+    // is applied, and processCLA() reports quit=true so main() can exit 0.
+    SimOptionHandler soh;
+    ArgList args("prog", "--help");
+    soh.parseSimOptions(args.argc(), args.argv());
+
+    ASSERT_TRUE(soh.helpRequested());
+    ASSERT_TRUE(soh.processCLA());
+}
+
 
 //// Error paths /////////////////////////////////////////////////////////////
 
 TEST(unknown_option_throws_UnknownOptionError) {
     SimOptionHandler soh;
-    ArgList args("prog", "-zzz");
+    ArgList args("prog", "--zzz");
 
     ASSERT_THROWS(soh.parseSimOptions(args.argc(), args.argv()),
                   murm::UnknownOptionError);
@@ -192,7 +216,7 @@ TEST(unknown_option_throws_UnknownOptionError) {
 
 TEST(unknown_option_message_includes_option_name) {
     SimOptionHandler soh;
-    ArgList args("prog", "-zzz");
+    ArgList args("prog", "--zzz");
 
     bool caught = false;
     try {
@@ -215,7 +239,7 @@ TEST(p_spec_without_equals_throws_InvalidOverrideSpec) {
 
 TEST(pin_with_missing_file_throws_ParamFileNotFoundError) {
     SimOptionHandler soh;
-    ArgList args("prog", "-pin", "/tmp/murm_test_does_not_exist_xyz.dat");
+    ArgList args("prog", "--pin", "/tmp/murm_test_does_not_exist_xyz.dat");
 
     ASSERT_THROWS(soh.parseSimOptions(args.argc(), args.argv()),
                   murm::ParamFileNotFoundError);
@@ -237,6 +261,69 @@ TEST(param_overlay_gen_throws_on_missing_equals) {
 }
 
 
+//// Model-developer extension via getApp() //////////////////////////////////
+
+TEST(model_developer_can_add_custom_option_via_getApp) {
+    SimOptionHandler soh;
+    int    seed = 0;
+    double temp = 0.0;
+    soh.getApp().add_option("--seed", seed, "Random seed");
+    soh.getApp().add_option("--temp", temp, "Temperature in K");
+
+    ArgList args("prog",
+                 "--seed", "12345",
+                 "--temp", "300.5",
+                 "-p", "sim.h.iparam=7");        // framework option still works
+    soh.parseSimOptions(args.argc(), args.argv());
+
+    ASSERT_EQ(12345, seed);
+    ASSERT_NEAR(300.5, temp, 1e-9);
+
+    // Framework options weren't disturbed by the custom additions.
+    murm::TopLevelComponent root;
+    root.addParamOverlayNode(soh.getParamOverlayNode());
+    HostComp host(&root, "h");
+    ASSERT_EQ(7, host.iparam.get());
+}
+
+namespace {
+
+// A reusable bundle of model-specific options packaged as a subclass of
+// SimOptionHandler.  This is the "layered" pattern a model developer might
+// ship in their own header.
+class MyModelOptions : public SimOptionHandler {
+public:
+    int    seed {0};
+    double temp {0.0};
+
+    MyModelOptions() {
+        getApp().add_option("--seed", seed, "Random seed");
+        getApp().add_option("--temp", temp, "Temperature in K");
+    }
+};
+
+} // namespace
+
+TEST(model_developer_can_add_custom_options_via_subclass) {
+    MyModelOptions soh;
+    ArgList args("prog", "--seed", "99", "--temp", "273.15");
+    soh.parseSimOptions(args.argc(), args.argv());
+
+    ASSERT_EQ(99, soh.seed);
+    ASSERT_NEAR(273.15, soh.temp, 1e-9);
+}
+
+TEST(custom_option_unknown_argument_still_throws_via_framework) {
+    // Errors from the CLI11 layer keep flowing through our exception
+    // translation regardless of which side registered the option.
+    MyModelOptions soh;
+    ArgList args("prog", "--seed", "5", "--unknown-flag");
+
+    ASSERT_THROWS(soh.parseSimOptions(args.argc(), args.argv()),
+                  murm::UnknownOptionError);
+}
+
+
 //// Exception hierarchy //////////////////////////////////////////////////////
 
 TEST(specific_errors_catchable_as_SimOptionError) {
@@ -254,7 +341,7 @@ TEST(specific_errors_catchable_as_SimOptionError) {
 
 TEST(SimOptionError_catchable_as_std_runtime_error) {
     SimOptionHandler soh;
-    ArgList args("prog", "-bogus");
+    ArgList args("prog", "--bogus");
 
     bool caught_as_runtime_error = false;
     try {
