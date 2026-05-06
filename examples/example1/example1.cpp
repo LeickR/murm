@@ -36,9 +36,18 @@ int main(const int argc, char* argv[])
    // 4. Run the simulation.
    // 5. Do any post-simulation actions (e.g., dump all stats, etc.)
 
-   // Parse the command-line options:
+   // Parse the command-line options.  Anything malformed (unknown option,
+   // missing '=' in -p spec, missing -pin file, ...) bubbles up as a
+   // murm::SimOptionError, which we catch at the bottom of main() to print
+   // a single-line diagnostic and exit with a non-zero status.
    SimOptionHandler soh;
-   soh.parseSimOptions(argc, argv);
+   try {
+      soh.parseSimOptions(argc, argv);
+   }
+   catch (const murm::SimOptionError &e) {
+      std::cerr << "error: " << e.what() << std::endl;
+      return 1;
+   }
 
    // Create the Event master (oversees the Event managers for all threads)
    murm::ThreadedEventMaster &master = murm::ThreadedEventMaster::getDefaultThreadedEventMaster();

@@ -33,6 +33,8 @@
 #include "../include/CommandOptionHandler.h"
 #include "../include/Param.hpp"
 #include "../include/Component.hpp"
+#include "../include/Stat.hpp"
+#include "../include/SimOptionError.hpp"
 
 // Class to assist with command-line object parsing:
 class SimOptionHandler : public CommandOptionHandler
@@ -123,19 +125,28 @@ public:
         return quit;
     }
 
+    // Read-only access to the parameter-overlay tree we built up while
+    // parsing.  Useful for tests, and for callers that want to apply the
+    // overlay to a non-singleton root.
+    const murm::ParamOverlayNode *getParamOverlayNode() const {
+        return param_overlay_gen_.getParamOverlay();
+    }
+
     void parseSimOptions(const int argc, char* argv[]) {
+        // Translate CommandOptionHandler's internal exception types into the
+        // public murm::SimOptionError hierarchy so callers and tests have a
+        // single, stable surface to catch on.  An unrecognized option used to
+        // print to stderr and assert(0), which silently fell through in
+        // release builds; throwing is correct in both build modes and lets
+        // main() print and exit cleanly.
         try {
             parseOptions(argc, argv);
         }
-        catch (CommandOptionHandler::UnknownOption uO) {
-            std::cerr << "Don't understand option \"-" << uO.option << "\"" << std::endl;
-            //usage();
-            assert(0);
+        catch (const CommandOptionHandler::UnknownOption &uO) {
+            throw murm::UnknownOptionError(uO.option);
         }
-        catch (CommandOptionHandler::UnknownArg uA) {
-            std::cerr << "Don't understand command line argument \"" << uA.arg << "\"" << std::endl;
-            //usage();
-            assert(0);
+        catch (const CommandOptionHandler::UnknownArg &uA) {
+            throw murm::UnknownArgumentError(uA.arg);
         }
         // Hand off the parameter overlay that we parsed to the top-level "sim" object
         murm::Component::getToplevelComponent()
@@ -153,8 +164,7 @@ protected:
             // Get the params from the param file
             std::ifstream pfin(value);
             if (pfin.fail()) {
-                std::cerr << "Cannot open parameter file " << value << std::endl;
-                exit(1); // ERROR
+                throw murm::ParamFileNotFoundError(value);
             }
             std::string line;
             while (std::getline(pfin, line)) {

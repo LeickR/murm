@@ -176,4 +176,32 @@ inline int run_all(const char *suite_name) {
                            << _a << "\"");                                      \
     } while (0)
 
+// Assert that evaluating `expr` throws an exception convertible to
+// `ExceptionType`.  Any other exception (or none at all) fails the test.
+//
+// Usage:
+//     ASSERT_THROWS(soh.parseSimOptions(argc, argv), murm::UnknownOptionError);
+//
+// `expr` is evaluated inside a try block, so it's safe for it to be a
+// statement-expression with side effects.
+#define ASSERT_THROWS(expr, ExceptionType)                                      \
+    do {                                                                        \
+        bool _murm_caught = false;                                              \
+        try {                                                                   \
+            (void)(expr);                                                       \
+        } catch (const ExceptionType &) {                                       \
+            _murm_caught = true;                                                \
+        } catch (const std::exception &_murm_e) {                               \
+            MURM_TEST_FAIL("ASSERT_THROWS failed: expected " #ExceptionType     \
+                           " from " #expr ", got std::exception: "              \
+                           << _murm_e.what());                                  \
+        } catch (...) {                                                         \
+            MURM_TEST_FAIL("ASSERT_THROWS failed: expected " #ExceptionType     \
+                           " from " #expr ", got non-std exception");           \
+        }                                                                       \
+        if (!_murm_caught)                                                      \
+            MURM_TEST_FAIL("ASSERT_THROWS failed: " #expr " did not throw "     \
+                           #ExceptionType);                                     \
+    } while (0)
+
 #endif // MURM_TEST_FRAMEWORK_HPP

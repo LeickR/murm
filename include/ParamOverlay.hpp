@@ -80,6 +80,7 @@
 #include <sstream>
 #include <cassert>
 #include "string_utils.hpp"
+#include "SimOptionError.hpp"
 
 typedef unsigned int uint;
 
@@ -199,9 +200,10 @@ public:
 
         // Get the path and the value
         if (pover.find('=') == std::string::npos) {
-            // '=' not found
-            std::cerr << "Invalid parameter specification: " << pover << std::endl;
-            assert(0);
+            // '=' not found - reject before mutating any state.  We throw
+            // (rather than assert/exit) so callers can catch and report
+            // cleanly, and so unit tests can exercise this error path.
+            throw murm::InvalidOverrideSpec(pover);
         }
         std::string path;
         std::string valstr;
