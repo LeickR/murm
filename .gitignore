@@ -1,2 +1,5 @@
 # Build output
 build/
+
+# clangd index (created automatically when editing in any clangd-aware IDE)
+.cache/

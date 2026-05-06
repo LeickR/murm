@@ -1,0 +1,17 @@
+-xc++
+-std=c++17
+-Iinclude
+-Itest
+-fopenmp
+-D__malloc__(...)=
+-Wall
+-Wextra
+-Wno-sign-compare
+-isystem
+/usr/include/c++/13
+-isystem
+/usr/include/x86_64-linux-gnu/c++/13
+-isystem
+/usr/include/c++/13/backward
+-isystem
+/usr/lib/gcc/x86_64-linux-gnu/13/include
