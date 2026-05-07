@@ -3,3 +3,7 @@ build/
 
 # clangd index (created automatically when editing in any clangd-aware IDE)
 .cache/
+
+# Per-developer clangd overrides (system include paths, compatibility shims).
+# See README.md for what to put here.
+.clangd
