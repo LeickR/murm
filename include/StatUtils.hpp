@@ -16,7 +16,7 @@ typedef std::vector<std::pair<double, std::pair<double, double>>> MinMaxTimeSequ
 
 // Utilities for outputting stat sequences (e.g., for plotting)
 // Output the sum:
-inline void outputStatSequence_Sum(simian::StatSamplerTimeSequenceVec &sampler_seq,
+inline void outputStatSequence_Sum(murm::StatSamplerTimeSequenceVec &sampler_seq,
                                               const std::string &tag,
                                               const std::string &header)
 {
@@ -28,7 +28,7 @@ inline void outputStatSequence_Sum(simian::StatSamplerTimeSequenceVec &sampler_s
 }
 
 // Output the mean:
-inline void outputStatSequence_Mean(simian::StatSamplerTimeSequenceVec &sampler_seq,
+inline void outputStatSequence_Mean(murm::StatSamplerTimeSequenceVec &sampler_seq,
                                                 const std::string &tag,
                                                 const std::string &header)
 {
@@ -40,7 +40,7 @@ inline void outputStatSequence_Mean(simian::StatSamplerTimeSequenceVec &sampler_
 }
 
 // Output the mean, standard deviation, min, max, etc.:
-inline void outputStatSequence_MeanStdDev(simian::StatSamplerTimeSequenceVec &sampler_seq,
+inline void outputStatSequence_MeanStdDev(murm::StatSamplerTimeSequenceVec &sampler_seq,
                                                         const std::string &tag,
                                                         const std::string &header)
 {
@@ -60,7 +60,7 @@ inline void outputStatSequence_MeanStdDev(simian::StatSamplerTimeSequenceVec &sa
 }
 
 // Output the mean, standard deviation, min, max, etc.:
-inline void outputStatSequence_MeanStdDevMinMax(simian::StatSamplerTimeSequenceVec &sampler_seq,
+inline void outputStatSequence_MeanStdDevMinMax(murm::StatSamplerTimeSequenceVec &sampler_seq,
                                                                 const std::string &tag,
                                                                 const std::string &header)
 {
@@ -105,9 +105,9 @@ private:
         StatType stat_type;
         std::string tag;
         std::string descrip;
-        simian::StatSampler accum; // Temporary accumulator used at the start/stop points
-        simian::StatSampler start_state;
-        simian::StatSampler final_state;
+        murm::StatSampler accum; // Temporary accumulator used at the start/stop points
+        murm::StatSampler start_state;
+        murm::StatSampler final_state;
         double min {0.0};
         double max {0.0};
 
@@ -122,7 +122,7 @@ private:
 
         void resetTemp() { accum.reset(); }
 
-        void accumulate(const std::map<std::string, simian::StatSampler*> &statmap) {
+        void accumulate(const std::map<std::string, murm::StatSampler*> &statmap) {
             switch (stat_type) {
             case MEAN:
             case MEAN_CUM_DERIV:
@@ -220,14 +220,14 @@ public:
     }
 
     // Accumulate stats at the start and end of the time window (for this component)
-    void accumulate(simian::Component &comp) {
+    void accumulate(murm::Component &comp) {
         ++comp_count_;
         
         // Update any "snapshot" stats
         comp.computeStatSnapshot();
         
         // Accumulate the data from this Component for each of the StatTrackers
-        const std::map<std::string, simian::StatSampler*> &statmap = comp.getStats();
+        const std::map<std::string, murm::StatSampler*> &statmap = comp.getStats();
         for (auto &stat_tracker : stat_trackers_) { stat_tracker.accumulate(statmap); }
     }
 
@@ -265,9 +265,9 @@ private:
         StatType stat_type;
         std::string tag;
         std::string descrip;
-        simian::StatSampler accum; // Temporary accumulator used at each time point
-        simian::StatSampler last_state;
-        simian::StatSamplerTimeSequenceVec time_seq_vec;
+        murm::StatSampler accum; // Temporary accumulator used at each time point
+        murm::StatSampler last_state;
+        murm::StatSamplerTimeSequenceVec time_seq_vec;
         MinMaxTimeSequenceVec min_max_seq_vec;
         
         // Constructor
@@ -289,7 +289,7 @@ private:
             //}
         }
 
-        void accumulate(const std::map<std::string, simian::StatSampler*> &statmap) {
+        void accumulate(const std::map<std::string, murm::StatSampler*> &statmap) {
             switch (stat_type) {
             case MEAN:
             case MEAN_SNAP:
@@ -398,14 +398,14 @@ public:
     }
 
     // Accumulate stats at the current time (for this component)
-    void accumulate(simian::Component &comp) {
+    void accumulate(murm::Component &comp) {
         ++comp_count_;
         
         // Update any "snapshot" stats
         comp.computeStatSnapshot();
         
         // Accumulate the data from this Component for each of the stat sequences
-        const std::map<std::string, simian::StatSampler*> &statmap = comp.getStats();
+        const std::map<std::string, murm::StatSampler*> &statmap = comp.getStats();
         for (auto &stat_seq : stat_seq_vec_) { stat_seq.accumulate(statmap); }
     }
 
